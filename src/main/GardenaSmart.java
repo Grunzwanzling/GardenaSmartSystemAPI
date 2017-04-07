@@ -284,7 +284,7 @@ public class GardenaSmart {
 	}
 
 	public static void main(String[] args) throws IOException {
-		GardenaSmart gardena = new GardenaSmart("alexander@gaisberg-helfenberg.de", "beilstein");
+		GardenaSmart gardena = new GardenaSmart("xxx@yyy.de", "xxx");
 		gardena.getDevice(1).list(System.out);
 	}
 
