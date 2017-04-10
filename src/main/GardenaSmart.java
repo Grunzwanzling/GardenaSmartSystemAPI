@@ -6,9 +6,9 @@ package main;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Properties;
@@ -51,7 +51,7 @@ public class GardenaSmart {
 	public GardenaSmart(String email, String password) throws IOException {
 		String param = "{\"sessions\": {\"email\": \"" + email + "\",\"password\": \"" + password + "\"}}",
 				url = "https://sg-api.dss.husqvarnagroup.net/sg-1/sessions", charset = "UTF-8";
-		URLConnection connection = new URL(url).openConnection();
+		HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
 		connection.setDoOutput(true); // Triggers POST.
 		connection.setRequestProperty("Accept-Charset", charset);
 		connection.setRequestProperty("Content-Type", "application/json;charset=" + charset);
@@ -59,8 +59,15 @@ public class GardenaSmart {
 		try (OutputStream output = connection.getOutputStream()) {
 			output.write(param.getBytes(charset));
 		}
+		System.out.println(connection.getResponseCode());
+		InputStream response;
 
-		InputStream response = connection.getInputStream();
+		int status = connection.getResponseCode();
+
+		if (status != HttpURLConnection.HTTP_OK)
+			response = connection.getErrorStream();
+		else
+			response = connection.getInputStream();
 		java.util.Scanner s = new java.util.Scanner(response).useDelimiter("\\A");
 		String result = !s.hasNext() ? "" : s.next();
 		System.out.println(result);
@@ -86,19 +93,53 @@ public class GardenaSmart {
 		}
 	}
 
+	public void sendCommand(String command, String duration) throws MalformedURLException, IOException {
+
+		String param = "{\"sessions\":" + command + "\"}", url = "https://sg-api.dss.husqvarnagroup.net/sg-1/sessions",
+				charset = "UTF-8";
+		HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+		connection.setDoOutput(true); // Triggers POST.
+		connection.setRequestProperty("Accept-Charset", charset);
+		connection.setRequestProperty("Content-Type", "application/json;charset=" + charset);
+
+		try (OutputStream output = connection.getOutputStream()) {
+			output.write(param.getBytes(charset));
+		}
+
+		InputStream response;
+
+		int status = connection.getResponseCode();
+
+		if (status != HttpURLConnection.HTTP_OK)
+			response = connection.getErrorStream();
+		else
+			response = connection.getInputStream();
+		java.util.Scanner s = new java.util.Scanner(response).useDelimiter("\\A");
+		String result = !s.hasNext() ? "" : s.next();
+		System.out.println(result);
+
+	}
+
 	/**
-	 * Get a <code>Properties</code> Object with all the information about one specific device.
-	 * @param number The number from {@link GardenaSmart.getDevices}
+	 * Get a <code>Properties</code> Object with all the information about one
+	 * specific device.
+	 * 
+	 * @param number
+	 *            The number from {@link GardenaSmart.getDevices}
 	 * @return
 	 */
 	public Properties getDevice(int number) {
 		return mapToProperties(jsonToMap(devices.getJSONObject(number), new HashMap<String, String>(), ""));
 
 	}
-/**
- * Get a HashMap with all the connected devices. It maps a number to the <code>deviceID</code>. Use the number to call {@link GardenaSmart.getDevice}
- * @return The <code>HashMap</code>
- */
+
+	/**
+	 * Get a HashMap with all the connected devices. It maps a number to the
+	 * <code>deviceID</code>. Use the number to call
+	 * {@link GardenaSmart.getDevice}
+	 * 
+	 * @return The <code>HashMap</code>
+	 */
 	public HashMap getDevices() {
 		return deviceList;
 	}
@@ -245,7 +286,7 @@ public class GardenaSmart {
 
 	public String[] getLocationID(String token, String user_id) throws MalformedURLException, IOException {
 		String url = "https://sg-api.dss.husqvarnagroup.net/sg-1/locations/?user_id=" + user_id, charset = "UTF-8";
-		URLConnection connection = new URL(url).openConnection();
+		HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
 		connection.setDoOutput(true); // Triggers POST.
 		// connection.setRequestProperty("Accept-Charset", charset);
 		connection.setRequestProperty("Content-Type", "application/json");
@@ -253,38 +294,60 @@ public class GardenaSmart {
 
 		connection.connect();
 
-		InputStream response = connection.getInputStream();
+		InputStream response;
+
+		int status = connection.getResponseCode();
+		boolean worked = false;
+		if (status != HttpURLConnection.HTTP_OK)
+			response = connection.getErrorStream();
+		else {
+			response = connection.getInputStream();
+			worked = true;
+		}
 		java.util.Scanner s = new java.util.Scanner(response).useDelimiter("\\A");
 		String result = s.hasNext() ? s.next() : "";
 		System.out.println(result);
-		location_id = result.substring(21, 57);
-		result = result.substring(result.indexOf("\"devices\":") + 12, result.indexOf("],\"zones\"") - 1);
-		return result.split("\",\"");
+		if (worked) {
+			location_id = result.substring(21, 57);
+			result = result.substring(result.indexOf("\"devices\":") + 12, result.indexOf("],\"zones\"") - 1);
+			return result.split("\",\"");
+		}
+		return null;
 	}
 
 	private String getDevice() throws MalformedURLException, IOException {
 		String url = "https://sg-api.dss.husqvarnagroup.net/sg-1/devices?locationId=" + location_id;
-		URLConnection connection = new URL(url).openConnection();
+		HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
 		connection.setDoOutput(true); // Triggers POST.
 		// connection.setRequestProperty("Accept-Charset", charset);
 		connection.setRequestProperty("Content-Type", "application/json");
 		connection.setRequestProperty("X-Session", token);
 
 		connection.connect();
-
-		InputStream response = connection.getInputStream();
+		InputStream response;
+		boolean worked = false;
+		if (connection.getResponseCode() != HttpURLConnection.HTTP_OK)
+			response = connection.getErrorStream();
+		else {
+			response = connection.getInputStream();
+			worked = true;
+		}
 		java.util.Scanner s = new java.util.Scanner(response).useDelimiter("\\A");
-		String result = !s.hasNext() ? "" : s.next();
+		String result = s.hasNext() ? s.next() : "";
+		System.out.println(result);
+		if (worked) {
 
-		// result = result.substring(12, result.length()-2);
+			// result = result.substring(12, result.length()-2);
 
-		obj = new JSONObject(result);
+			obj = new JSONObject(result);
 
-		return result;
+			return result;
+		}
+		return null;
 	}
 
 	public static void main(String[] args) throws IOException {
-		GardenaSmart gardena = new GardenaSmart("xxx@yyy.de", "xxx");
+		GardenaSmart gardena = new GardenaSmart("alexander@gaisberg-helfenberg.de", "beilstein");
 		gardena.getDevice(1).list(System.out);
 	}
 
